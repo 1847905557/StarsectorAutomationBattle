@@ -1,3 +1,4 @@
 /*
 !/src
-/src/**/*.iml
+/src/*.iml
+/src/*/*.iml
