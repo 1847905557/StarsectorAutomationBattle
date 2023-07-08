@@ -1,5 +1,5 @@
 **/*
+/src/*.iml
 !/src/
 !/src/**
-/src/*.iml
 !.gitignore
