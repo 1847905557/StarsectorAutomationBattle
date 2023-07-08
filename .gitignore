@@ -1,5 +1,3 @@
-**/*
-/src/*.iml
-!/src/
-!/src/**
-!.gitignore
+/*
+!/src
+/src/**/*.iml
