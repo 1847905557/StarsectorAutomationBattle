@@ -25,8 +25,9 @@ import org.lwjgl.util.vector.Vector2f;
 import org.magiclib.plugins.MagicRenderPlugin;
 import org.magiclib.util.MagicRender;
 
-import java.awt.Color;
+import java.awt.*;
 import java.io.IOException;
+import java.util.List;
 import java.util.*;
 
 public class AI_missionUtils {
@@ -35,12 +36,12 @@ public class AI_missionUtils {
 
 	public static class Match {
 
-		public int sidePlayer = 0;
-		public int sideEnemy = 0;
+		public String sidePlayer = "";
+		public String sideEnemy = "";
 		public int mapNumber = -1;
 		public float sizeMult = 1;
 
-		public static Match createPVP(int sidePlayer, int sideEnemy, int mapNumber, float sizeMult) {
+		public static Match createPVP(String sidePlayer, String sideEnemy, int mapNumber, float sizeMult) {
 			Match match = new Match();
 			match.sidePlayer = sidePlayer;
 			match.sideEnemy = sideEnemy;
@@ -49,7 +50,7 @@ public class AI_missionUtils {
 			return match;
 		}
 
-		public static Match createPVE(int sidePlayer, int mapNumber, float sizeMult) {
+		public static Match createPVE(String sidePlayer, int mapNumber, float sizeMult) {
 			Match match = new Match();
 			match.sidePlayer = sidePlayer;
 			match.mapNumber = mapNumber;
@@ -96,11 +97,11 @@ public class AI_missionUtils {
 			return fleet;
 		}
 
-		public static Fleet createFleet(String path, int playerNumber) {
+		public static Fleet createFleet(String path, String playerId) {
 
 			Fleet fleet = createSimpleFleet();
 
-			String fleetDataPath = path + "player" + playerNumber + "_data.csv";
+			String fleetDataPath = path + "player" + playerId + "_data.csv";
 			try {
 				JSONArray playerData = Global.getSettings().getMergedSpreadsheetDataForMod("name", fleetDataPath, "aibattles");
 				for (int i = 0; i < playerData.length(); i++) {
@@ -127,11 +128,11 @@ public class AI_missionUtils {
 				}
 
 			} catch (IOException | JSONException ex) {
-				log.error("unable to read player" + playerNumber + "_data.csv");
+				log.error("unable to read player" + playerId + "_data.csv");
 				log.error(ex);
 			}
 
-			String memberDataPath = path + "player" + playerNumber + "_fleet.csv";
+			String memberDataPath = path + "player" + playerId + "_fleet.csv";
 			try {
 				JSONArray playerFleet = Global.getSettings().getMergedSpreadsheetDataForMod("rowNumber", memberDataPath, "aibattles");
 				for (int i = 0; i < playerFleet.length(); i++) {
@@ -198,7 +199,7 @@ public class AI_missionUtils {
 					fleet.fleetMembers.put(member, automationProcessor);
 				}
 			} catch (IOException | JSONException ex) {
-				log.error("unable to read player" + playerNumber + "_fleet.csv");
+				log.error("unable to read player" + playerId + "_fleet.csv");
 				log.error(ex);
 			}
 
@@ -303,7 +304,7 @@ public class AI_missionUtils {
 		return Global.getSettings().getSprite("misc", "AI_enemy");
 	}
 
-	public static SpriteAPI getPlayerSprite(int player) {
+	public static SpriteAPI getPlayerSprite(String player) {
 		SpriteAPI sprite = getDefaultSprite();
 		try {
 			String fileName = "graphics/AIB/VSscreen/names/Player" + player + ".png";
@@ -702,6 +703,7 @@ public class AI_missionUtils {
 		try {
 			JSONObject json = Global.getSettings().loadJSON("data/variants/" + variantId + ".variant");
 			if (json != null) {
+//				HullVariantSpec hullVariantSpec = new HullVariantSpec(json);
 				String hullId = json.optString("hullId", null);
 
 				ShipVariantAPI variant = Global.getSettings().createEmptyVariant(variantId, Global.getSettings().getHullSpec(hullId));
