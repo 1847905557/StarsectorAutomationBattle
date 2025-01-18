@@ -1,8 +1,9 @@
 package data.missions.PvE;
 
 import com.fs.starfarer.api.Global;
-import com.fs.starfarer.api.combat.*;
-import com.fs.starfarer.api.combat.CombatFleetManagerAPI.AssignmentInfo;
+import com.fs.starfarer.api.combat.BaseEveryFrameCombatPlugin;
+import com.fs.starfarer.api.combat.CombatEngineAPI;
+import com.fs.starfarer.api.combat.EveryFrameCombatPlugin;
 import com.fs.starfarer.api.fleet.FleetGoal;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
@@ -31,20 +32,23 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 
 	private static final Logger log = Global.getLogger(MissionDefinition.class);
 
-	private static int match, player, enemyFactionNumber, minFP, clock = 0;
-	private static boolean first = true, isShown = false;
+	private static int globalCurrentMatch, playerIndex, enemyFactionNumber, minFP = 0;
+	private static boolean firstEnteringMission = true;
 
 	private static final String PATH = "tournament/";
 	private static final String ROUND_MATCHES = PATH + "PvE_matches.csv";
 	private static final Map<Integer, Match> MATCHES = new HashMap<>();
 
-	private static boolean SOUND = false, END = false;
-
 	@Override
 	public void defineMission(MissionDefinitionAPI api) {
 
-		//cleanup
-		clock = 0;
+		String music = Global.getSoundPlayer().getCurrentMusicId();
+		if (!music.contentEquals("miscallenous_main_menu.ogg")) {
+			Global.getSoundPlayer().playCustomMusic(1, 1, null);
+		}
+
+		api.getContext().aiRetreatAllowed = false;
+		api.getContext().fightToTheLast = true;
 
 		//read round_matches.csv
 		MATCHES.clear();
@@ -52,31 +56,31 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 			JSONArray matches = Global.getSettings().getMergedSpreadsheetDataForMod("player", ROUND_MATCHES, "aibattles");
 			for (int i = 0; i < matches.length(); i++) {
 				JSONObject row = matches.getJSONObject(i);
-				player = row.getInt("player");
+				playerIndex = row.getInt("player");
 				int map = row.optInt("map", -1);
 				float size = (float)row.optDouble("size", 1f);
 
-				MATCHES.put(i, Match.createPVE(player, map, size));
+				MATCHES.put(i, Match.createPVE(playerIndex, map, size));
 			}
 		} catch (IOException | JSONException ex) {
 			log.error("unable to read round_matches.csv");
 		}
 
 		//cycle the matches while holding space
-		if (first) {
-			first = false;
-			match = 0;
+		if (firstEnteringMission) {
+			firstEnteringMission = false;
+			globalCurrentMatch = 0;
 			enemyFactionNumber = 0;
 			minFP = 10;
 		} else if (Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) {
-			match++;
-			if (match >= MATCHES.size()) {
-				match = 0;
+			globalCurrentMatch++;
+			if (globalCurrentMatch >= MATCHES.size()) {
+				globalCurrentMatch = 0;
 			}
 		} else if (Keyboard.isKeyDown(Keyboard.KEY_LEFT)) {
-			match--;
-			if (match < 0) {
-				match = MATCHES.size() - 1;
+			globalCurrentMatch--;
+			if (globalCurrentMatch < 0) {
+				globalCurrentMatch = MATCHES.size() - 1;
 			}
 		} else if (Keyboard.isKeyDown(Keyboard.KEY_UP)) {
 			minFP += 10;
@@ -95,10 +99,10 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 			}
 		}
 
-		Match currentMatch = MATCHES.get(match);
+		Match currentMatch = MATCHES.get(globalCurrentMatch);
 
-		player = currentMatch.sidePlayer;
-		Fleet thePlayer = Fleet.createFleet(PATH, player);
+		playerIndex = currentMatch.sidePlayer;
+		Fleet thePlayer = Fleet.createFleet(PATH, playerIndex);
 		api.initFleet(FleetSide.PLAYER, "", FleetGoal.ATTACK, true, 1);
 		api.setFleetTagline(FleetSide.PLAYER, thePlayer.getName());
 		thePlayer.deploy(api, FleetSide.PLAYER);
@@ -117,7 +121,7 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 
 		//set the terrain
 		int seed = currentMatch.mapNumber;
-		if (seed < 0) seed = match * playerCost + enemyCost + playerCost;
+		if (seed < 0) seed = globalCurrentMatch * playerCost + enemyCost + playerCost;
 		seed %= AI_missionUtils.MAP_COUNT;
 
 		float sizeMult = currentMatch.sizeMult;
@@ -130,8 +134,20 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 
 	public final static class Plugin extends BaseEveryFrameCombatPlugin {
 
+		private CombatEngineAPI engine = null;
+		private boolean initialFleetDeployed = false;
+		private boolean initialPlayerShown = false;
+		private boolean initialSideShown = false;
+		private boolean initialSoundPlay = false;
+
+		private boolean shouldShowEnd = false;
+
 		@Override
 		public void init(CombatEngineAPI engine) {
+
+			this.engine = engine;
+			engine.getContext().aiRetreatAllowed = false;
+			engine.getContext().fightToTheLast = true;
 
 			////////////////////////////////////
 			//                                //
@@ -150,11 +166,6 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 			Global.getCombatEngine().setMaxFleetPoints(FleetSide.ENEMY, 9999);
 			Global.getCombatEngine().setMaxFleetPoints(FleetSide.PLAYER, 9999);
 
-			SOUND = false;
-
-			isShown = false;
-			END = false;
-
 			enemyFactionNumber--;
 		}
 
@@ -169,7 +180,8 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 
 		@Override
 		public void advance(float amount, List<InputEventAPI> events) {
-			CombatEngineAPI engine = Global.getCombatEngine();
+
+			if (engine == null) return;
 
 			////////////////////////////////////
 			//                                //
@@ -177,15 +189,15 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 			//                                //
 			////////////////////////////////////
 
-			if (!isShown) {
+			if (!initialPlayerShown) {
 				if (engine.getTotalElapsedTime(false) > 1f) {
-					isShown = true;
+					initialPlayerShown = true;
 					SpriteAPI VS = Global.getSettings().getSprite("misc", "AI_versus");
 					AI_missionUtils.screenSpace(VS, MagicRender.positioning.CENTER, new Vector2f(0, VS.getHeight() * 0.25f), new Vector2f(0, VS.getHeight() * -0.1f), new Vector2f(VS.getWidth(), VS.getHeight()), new Vector2f(0, 0), 0, 0, Color.WHITE, false, 0f, 3.2f, 0.2f);
 					SpriteAPI VSF = Global.getSettings().getSprite("misc", "AI_versusF");
 					AI_missionUtils.screenSpace(VSF, MagicRender.positioning.CENTER, new Vector2f(0, VSF.getHeight() * 0.25f), new Vector2f(0, VSF.getHeight() * -0.1f), new Vector2f(VSF.getWidth(), VSF.getHeight()), new Vector2f(0, 0), 0, 0, Color.WHITE, true, 0f, 0f, 0.5f);
 
-					SpriteAPI playerP = AI_missionUtils.getPlayerSprite(player);
+					SpriteAPI playerP = AI_missionUtils.getPlayerSprite(playerIndex);
 					AI_missionUtils.screenSpace(playerP, MagicRender.positioning.CENTER, new Vector2f(playerP.getWidth() * 1.2f, 0), new Vector2f(playerP.getWidth() * -0.03f, 0), new Vector2f(playerP.getWidth(), playerP.getHeight()), new Vector2f(), 0, 0, Color.WHITE, false, 0f, 3f, 0.2f);
 
 					SpriteAPI playerE = AI_missionUtils.getDefaultSprite();
@@ -193,62 +205,38 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 				} else if (engine.getTotalElapsedTime(false) > 0.5f) {
 					float time = 1f - engine.getTotalElapsedTime(false);
 
-					SpriteAPI playerPF = AI_missionUtils.getPlayerSprite(player);
+					SpriteAPI playerPF = AI_missionUtils.getPlayerSprite(playerIndex);
 					AI_missionUtils.screenSpace(playerPF, MagicRender.positioning.CENTER, new Vector2f(playerPF.getWidth() * 1.2f + (time * 3000), 0), new Vector2f(-10, 0), new Vector2f(playerPF.getWidth(), playerPF.getHeight()), new Vector2f(), 0, 0, Color.WHITE, false, -1f, -1f, -1f);
 
 					SpriteAPI playerEF = AI_missionUtils.getDefaultSprite();
 					AI_missionUtils.screenSpace(playerEF, MagicRender.positioning.CENTER, new Vector2f(playerEF.getWidth() * -1.2f - (time * 3000), 0), new Vector2f(10, 0), new Vector2f(playerEF.getWidth(), playerEF.getHeight()), new Vector2f(), 0, 0, Color.WHITE, false, -1f, -1f, -1f);
-					if (!SOUND) {
-						SOUND = true;
+					if (!initialSoundPlay) {
+						initialSoundPlay = true;
 						Global.getSoundPlayer().playUISound("AIB_versusS", 1, 1);
 					}
 				}
 			} else if (engine.getTotalElapsedTime(false) > 4f) {
-				SpriteAPI playerPF = AI_missionUtils.getPlayerSprite(player);
-				Vector2f positionU = new Vector2f(-805f + playerPF.getWidth() * 0.25f, -playerPF.getHeight() * 0.5f);
-				AI_missionUtils.screenSpace(playerPF, MagicRender.positioning.CENTER, positionU, new Vector2f(0, 0), new Vector2f(playerPF.getWidth() * 0.5f, playerPF.getHeight() * 0.5f), new Vector2f(), 0, 0, Color.GREEN, false, 2f, -1f, -1f);
 
-				SpriteAPI playerEF = AI_missionUtils.getDefaultSprite();
-				Vector2f positionD = new Vector2f(-805f + playerEF.getWidth() * 0.25f, playerEF.getHeight() * 0.5f);
-				AI_missionUtils.screenSpace(playerEF, MagicRender.positioning.CENTER, positionD, new Vector2f(0, 0), new Vector2f(playerEF.getWidth() * 0.5f, playerEF.getHeight() * 0.5f), new Vector2f(), 0, 0, Color.PINK, false, 2f, -1f, -1f);
+				if (!initialSideShown) {
+					initialSideShown = true;
+
+					float screenWidth = Global.getSettings().getScreenWidth();
+
+					SpriteAPI playerP = AI_missionUtils.getPlayerSprite(playerIndex);
+					float width = playerP.getWidth();
+					float height = playerP.getHeight();
+					Vector2f positionU = new Vector2f(-screenWidth * 0.5f + width * 0.25f, -height * 0.5f);
+					AI_missionUtils.screenSpace(playerP, MagicRender.positioning.CENTER, positionU, new Vector2f(0, 0), new Vector2f(width * 0.5f, height * 0.5f), new Vector2f(), 0, 0, Color.GREEN, false, 1f, 999999f, 1f);
+
+					SpriteAPI playerE = AI_missionUtils.getDefaultSprite();
+					width = playerE.getWidth();
+					height = playerE.getHeight();
+					Vector2f positionD = new Vector2f(-screenWidth * 0.5f + width * 0.25f, height * 0.5f);
+					AI_missionUtils.screenSpace(playerE, MagicRender.positioning.CENTER, positionD, new Vector2f(0, 0), new Vector2f(width * 0.5f, height * 0.5f), new Vector2f(), 0, 0, Color.PINK, false, 1f, 999999f, 1f);
+				}
 			}
 
 			if (engine.isPaused()) return;
-
-
-			////////////////////////////////////
-			//                                //
-			//          ANTI-RETREAT          //
-			//                                //
-			////////////////////////////////////
-
-			engine.getFleetManager(FleetSide.PLAYER).getTaskManager(true).setPreventFullRetreat(true);
-			engine.getFleetManager(FleetSide.ENEMY).getTaskManager(true).setPreventFullRetreat(true);
-
-			for (ShipAPI ship : engine.getShips()) {
-				if (!ship.isAlive() || ship.isFighter()) {
-					continue;
-				}
-
-				AssignmentInfo assignment = engine.getFleetManager(ship.getOriginalOwner()).getTaskManager(false).getAssignmentFor(ship);
-
-				if (assignment != null) {
-					if (assignment.getType() == CombatAssignmentType.RETREAT) {
-						DeployedFleetMemberAPI dmember = engine.getFleetManager(ship.getOriginalOwner()).getDeployedFleetMember(ship);
-
-						if (dmember != null) {
-							engine.getFleetManager(ship.getOriginalOwner()).getTaskManager(false).orderSearchAndDestroy(dmember, false);
-							if (ship.getOriginalOwner() == 0) {
-								bonus0++;
-								engine.getFleetManager(0).getTaskManager(false).getCommandPointsStat().modifyFlat("flatcpbonus0", bonus0);
-							} else {
-								bonus1++;
-								engine.getFleetManager(1).getTaskManager(false).getCommandPointsStat().modifyFlat("flatcpbonus1", bonus1);
-							}
-						}
-					}
-				}
-			}
 
 			////////////////////////////////////
 			//                                //
@@ -256,8 +244,8 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 			//                                //
 			////////////////////////////////////
 
-			clock = (int) engine.getTotalElapsedTime(false);
-			engine.maintainStatusForPlayerShip("clock", null, "Timer", clock + " seconds", !END);
+			int clock = (int) engine.getTotalElapsedTime(false);
+			engine.maintainStatusForPlayerShip("clock", null, "Timer", clock + " seconds", !shouldShowEnd);
 		}
 	}
 }

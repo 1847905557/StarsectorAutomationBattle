@@ -2,7 +2,6 @@ package data.missions.PvP;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.*;
-import com.fs.starfarer.api.combat.CombatFleetManagerAPI.AssignmentInfo;
 import com.fs.starfarer.api.fleet.FleetGoal;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
@@ -11,7 +10,6 @@ import com.fs.starfarer.api.input.InputEventAPI;
 import com.fs.starfarer.api.mission.FleetSide;
 import com.fs.starfarer.api.mission.MissionDefinitionAPI;
 import com.fs.starfarer.api.mission.MissionDefinitionPlugin;
-import com.fs.starfarer.api.util.Misc;
 import data.missions.scripts.AI_missionUtils;
 import data.missions.scripts.AI_missionUtils.EmptyAdmiral;
 import data.missions.scripts.AI_missionUtils.Fleet;
@@ -31,6 +29,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MissionDefinition implements MissionDefinitionPlugin {
 
@@ -45,6 +45,14 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 
 	@Override
 	public void defineMission(MissionDefinitionAPI api) {
+
+		String music = Global.getSoundPlayer().getCurrentMusicId();
+		if (!music.contentEquals("miscallenous_main_menu.ogg")) {
+			Global.getSoundPlayer().playCustomMusic(1, 1, null);
+		}
+
+		api.getContext().aiRetreatAllowed = false;
+		api.getContext().fightToTheLast = true;
 
 		//read round_matches.csv
 		MATCHES.clear();
@@ -125,6 +133,7 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 		private float timer = 0f;
 		private boolean initialFleetDeployed = false;
 		private boolean initialPlayerShown = false;
+		private boolean initialSideShown = false;
 		private boolean initialSoundPlay = false;
 		private boolean revealMap = false;
 
@@ -144,6 +153,8 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 			//                                //
 			////////////////////////////////////
 			this.engine = engine;
+			engine.getContext().aiRetreatAllowed = false;
+			engine.getContext().fightToTheLast = true;
 
 			EveryFrameCombatPlugin freeCam = new AI_freeCamPlugin();
 			engine.addPlugin(freeCam);
@@ -191,9 +202,6 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 		SpriteAPI playerPF = AI_missionUtils.getPlayerSprite(playerIndex);
 		SpriteAPI playerEF = AI_missionUtils.getPlayerSprite(enemyIndex);
 
-		private float width = playerP.getWidth();
-		private float height = playerP.getHeight();
-
 		////////////////////////////////////
 		//                                //
 		//         ADVANCE PLUGIN         //
@@ -216,9 +224,20 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 				initialFleetDeployed = true;
 
 				log.info("Map size: " + (int) mapX + "x" + (int) mapY);
-
 				AI_missionUtils.forcedSpawn(engine, FleetSide.PLAYER, mapX, mapY, true);
 				AI_missionUtils.forcedSpawn(engine, FleetSide.ENEMY, mapX, mapY, true);
+
+				Global.getSoundPlayer().playCustomMusic(1, 1, null);
+				String music = playerFleet.getTagStartsWith("music");
+				if (music != null) {
+					Pattern PATTERN = Pattern.compile("^(\\w+)\\(([^\\)]+)\\)$");
+					Matcher matcher = PATTERN.matcher(music);
+					if (matcher.matches()) {
+						String musicId = matcher.group(2).split(",\\s*")[0];
+						Global.getSoundPlayer().playCustomMusic(1, 1, musicId, true);
+					}
+				}
+
 				return;
 			}
 
@@ -249,11 +268,30 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 					}
 				}
 			} else if (engine.getTotalElapsedTime(false) > 4f) {
-				Vector2f positionU = new Vector2f(-805f + width * 0.25f, -height * 0.5f);
-				AI_missionUtils.screenSpace(playerPF, MagicRender.positioning.CENTER, positionU, new Vector2f(0, 0), new Vector2f(width * 0.5f, height * 0.5f), new Vector2f(), 0, 0, Color.GREEN, false, 1f, -0.5f, -0.5f);
 
-				Vector2f positionD = new Vector2f(-805f + width * 0.25f, height * 0.5f);
-				AI_missionUtils.screenSpace(playerEF, MagicRender.positioning.CENTER, positionD, new Vector2f(0, 0), new Vector2f(width * 0.5f, height * 0.5f), new Vector2f(), 0, 0, Color.PINK, false, 1f, -0.5f, -0.5f);
+				if (!initialSideShown) {
+					initialSideShown = true;
+
+					float screenWidth = Global.getSettings().getScreenWidth();
+
+					float width = playerP.getWidth();
+					float height = playerP.getHeight();
+
+					width = 360f;
+					height = 80f;
+
+					Vector2f positionU = new Vector2f(-screenWidth * 0.5f + width * 0.25f, -height * 0.5f);
+					AI_missionUtils.screenSpace(playerP, MagicRender.positioning.CENTER, positionU, new Vector2f(0, 0), new Vector2f(width * 0.5f, height * 0.5f), new Vector2f(), 0, 0, Color.GREEN, false, 1f, 999999f, 1f);
+
+					width = playerE.getWidth();
+					height = playerE.getHeight();
+
+					width = 360f;
+					height = 80f;
+
+					Vector2f positionD = new Vector2f(-screenWidth * 0.5f + width * 0.25f, height * 0.5f);
+					AI_missionUtils.screenSpace(playerE, MagicRender.positioning.CENTER, positionD, new Vector2f(0, 0), new Vector2f(width * 0.5f, height * 0.5f), new Vector2f(), 0, 0, Color.PINK, false, 1f, 999999f, 1f);
+				}
 			}
 
 			if (engine.isPaused()) return;
@@ -296,34 +334,6 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 				//map reveal to all
 				engine.getFogOfWar(1).revealAroundPoint(engine, 0, 0, 90000);
 				engine.getFogOfWar(0).revealAroundPoint(engine, 0, 0, 90000);
-			}
-
-			////////////////////////////////////
-			//                                //
-			//          ANTI-RETREAT          //
-			//                                //
-			////////////////////////////////////
-
-
-			for (ShipAPI ship : engine.getShips()) {
-				if (!ship.isAlive()) continue;
-				if (ship.isFighter()) continue;
-
-				AssignmentInfo assignment = engine.getFleetManager(ship.getOwner()).getTaskManager(ship.isAlly()).getAssignmentFor(ship);
-				if (assignment == null) continue;
-
-				if (assignment.getType() == CombatAssignmentType.RETREAT) {
-
-					boolean playerAndDefault = ship.getOwner() == Misc.OWNER_PLAYER && playerFleet.hasTag("default_ai");
-					boolean enemyAndDefault = ship.getOwner() != Misc.OWNER_PLAYER && enemyFleet.hasTag("default_ai");
-
-					if (playerAndDefault || enemyAndDefault) {
-						DeployedFleetMemberAPI dmember = engine.getFleetManager(ship.getOwner()).getDeployedFleetMember(ship);
-						if (dmember != null) {
-							engine.getFleetManager(ship.getOwner()).getTaskManager(ship.isAlly()).orderSearchAndDestroy(dmember, false);
-						}
-					}
-				}
 			}
 
 			////////////////////////////////////

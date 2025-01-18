@@ -85,6 +85,13 @@ public class AI_missionUtils {
 			return tags.contains(tag);
 		}
 
+		public String getTagStartsWith(String prefix) {
+			for (String tag : tags) {
+				if (tag.startsWith(prefix)) return tag;
+			}
+			return null;
+		}
+
 		private Fleet() {
 			fleet = Global.getFactory().createEmptyFleet(Factions.PLAYER, name, true);
 		}
@@ -139,7 +146,7 @@ public class AI_missionUtils {
 					if (row.getString("rowNumber").isEmpty()) continue;
 
 					String variant = row.getString("variant");
-					ShipVariantAPI loadedVariant = loadVariant(variant, false);
+					ShipVariantAPI loadedVariant = loadVariant(variant, fleet.hasTag("force_reload"));
 					loadedVariant.addTag(Tags.TAG_NO_AUTOFIT);
 
 					FleetMemberAPI member = Global.getFactory().createFleetMember(FleetMemberType.SHIP, loadedVariant);
@@ -790,12 +797,21 @@ public class AI_missionUtils {
 				variant.setGoalVariant(false);
 				return variant;
 			}
+
 		} catch (IOException | JSONException exception) {
 			exception.printStackTrace();
-			Global.getLogger(AI_missionUtils.class).info("Wrong with " + variantId);
+			throw new RuntimeException("Wrong(JSON ERROR) with id:" + variantId);
+		} catch (RuntimeException exception) {
+			//exception.printStackTrace();
+			Global.getLogger(AI_missionUtils.class).warn("Not found in standard place with id:" + variantId);
 		}
 
-		throw new RuntimeException("Wrong with " + variantId);
+		try {
+			return Global.getSettings().getVariant(variantId).clone();
+		} catch (Exception exception) {
+			exception.printStackTrace();
+			throw new RuntimeException("Wrong(NOT FOUND) with id:" + variantId);
+		}
 	}
 
 	public static class EmptyAdmiral implements AdmiralAIPlugin {

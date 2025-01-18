@@ -79,6 +79,10 @@ public class AutomationThread {
 			}
 		}
 
+		if (picker == null) {
+			throw new InstantiationException();
+		}
+
 		AutomationThread thread = new AutomationThread(starter, filters, picker, suffixes);
 		return thread;
 	}
@@ -93,6 +97,7 @@ public class AutomationThread {
 		}
 
 		if (targets.isEmpty()) return null;
+
 		AssignmentTargetAPI assignmentTarget = picker.pick(ship, targets, starter.getCombatAssignmentType(), engine);
 		cachedPriority = 0f;
 

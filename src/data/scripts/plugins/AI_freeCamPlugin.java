@@ -21,37 +21,45 @@ import java.util.List;
 
 public class AI_freeCamPlugin extends BaseEveryFrameCombatPlugin {
 
-	private final String ID = "freeCam";
+	public static final String ID = "freeCam";
+	public static final float DEFAULT_TIME_MULT = 1.5f;
+	public static final float BOOST_TIME_MULT = 4f;
+	public static final float STATIC_TIME_MULT = 1f;
 
 	private final Logger log = Global.getLogger(AI_freeCamPlugin.class);
-	private CombatEngineAPI engine;
+	private CombatEngineAPI engine = null;
+
 	private int freeCam = 0;
 	private boolean camToggle = false, zoomIn = false, zoomOut = false, message = false;
 	private float mapX, mapY, screenX, screenY, scale = 5, zoomX = 0, zoomY = 0;
 	private Vector2f target = new Vector2f();
 
 	@Override
+	public void init(CombatEngineAPI engine) {
+		this.engine = engine;
+
+		screenX = Global.getSettings().getScreenWidth();
+		screenY = Global.getSettings().getScreenHeight();
+
+		zoomX = screenX;
+		zoomY = screenY;
+
+		mapX = engine.getMapWidth();
+		mapY = engine.getMapHeight();
+
+		freeCam = 0;
+	}
+
+	@Override
 	public void advance(float amount, List<InputEventAPI> events) {
 
-		if (engine == null) {
-			engine = Global.getCombatEngine();
-
-			screenX = Global.getSettings().getScreenWidth();
-			screenY = Global.getSettings().getScreenHeight();
-
-			zoomX = screenX;
-			zoomY = screenY;
-
-			mapX = engine.getMapWidth();
-			mapY = engine.getMapHeight();
-
-			freeCam = 0;
-		}
+		if (engine == null) return;
 
 		ShipAPI player = engine.getPlayerShip();
 		if (player.isAlive() && !player.isShuttlePod()) {
+			freeCam = 0;
 			engine.getViewport().setExternalControl(false);
-			engine.getTimeMult().modifyMult(ID, 1f);
+			engine.getTimeMult().modifyMult(ID, STATIC_TIME_MULT);
 			return;
 		}
 
@@ -66,19 +74,19 @@ public class AI_freeCamPlugin extends BaseEveryFrameCombatPlugin {
 				message = true;
 				engine.getCombatUI().addMessage(0, "Engaged x4 speed-up.");
 			}
-			engine.getTimeMult().modifyMult(ID, 4f);
+			engine.getTimeMult().modifyMult(ID, BOOST_TIME_MULT);
 		} else if (Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)) {
 			if (!message) {
 				message = true;
 				engine.getCombatUI().addMessage(0, "Engaged normal time flow.");
 			}
-			engine.getTimeMult().modifyMult(ID, 1f);
+			engine.getTimeMult().modifyMult(ID, STATIC_TIME_MULT);
 		} else {
 			if (message) {
 				message = false;
 				engine.getCombatUI().addMessage(0, "Engaged x1.5 speed-up.");
 			}
-			engine.getTimeMult().modifyMult(ID, 1.5f);
+			engine.getTimeMult().modifyMult(ID, DEFAULT_TIME_MULT);
 		}
 
 		////////////////////////////////////
@@ -198,7 +206,7 @@ public class AI_freeCamPlugin extends BaseEveryFrameCombatPlugin {
 					zoomIn = false;
 				}
 
-				if (!Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) && i.isAltDown()) {
+				if (!i.isCtrlDown() && i.isAltDown()) {
 					freeCam = -1;
 					camToggle = true;
 					log.info("Reset cam.");
