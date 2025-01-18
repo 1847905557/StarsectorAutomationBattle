@@ -8,6 +8,7 @@ import com.fs.starfarer.api.combat.*;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.fleet.FleetMemberType;
 import com.fs.starfarer.api.graphics.SpriteAPI;
+import com.fs.starfarer.api.impl.campaign.AICoreOfficerPluginImpl;
 import com.fs.starfarer.api.impl.campaign.fleets.FleetFactory;
 import com.fs.starfarer.api.impl.campaign.ids.*;
 import com.fs.starfarer.api.impl.hullmods.Automated;
@@ -15,6 +16,7 @@ import com.fs.starfarer.api.loading.WeaponGroupSpec;
 import com.fs.starfarer.api.loading.WeaponGroupType;
 import com.fs.starfarer.api.mission.FleetSide;
 import com.fs.starfarer.api.mission.MissionDefinitionAPI;
+import data.missions.scripts.automation.AutomationController;
 import data.missions.scripts.automation.AutomationProcessor;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
@@ -65,7 +67,7 @@ public class AI_missionUtils {
 		private CampaignFleetAPI fleet;
 
 		private final List<String> fleetSkills = new ArrayList<>();
-		private final HashMap<FleetMemberAPI, AutomationProcessor> fleetMembers = new HashMap<>();
+		private final HashMap<FleetMemberAPI, FleetMemberData> fleetMembers = new HashMap<>();
 		private final Set<String> tags = new HashSet<>();
 
 		public String getName() {
@@ -78,18 +80,33 @@ public class AI_missionUtils {
 
 		public AutomationProcessor getAutomationProcessor(FleetMemberAPI member) {
 			if (!fleetMembers.containsKey(member)) return null;
-			return fleetMembers.get(member);
+			return fleetMembers.get(member).automationProcessor;
 		}
 
 		public boolean hasTag(String tag) {
 			return tags.contains(tag);
 		}
 
-		public String getTagStartsWith(String prefix) {
+		public static List<String> getTagsStartsWith(Set<String> tags, String prefix) {
+			List<String> tagsWith = new ArrayList<>();
 			for (String tag : tags) {
-				if (tag.startsWith(prefix)) return tag;
+				if (tag.startsWith(prefix)) tagsWith.add(tag);
 			}
-			return null;
+			return tagsWith;
+		}
+
+		public static String getTagStartsWith(Set<String> tags, String prefix) {
+			List<String> tagsWith = getTagsStartsWith(tags, prefix);
+			if (tagsWith.isEmpty()) return null;
+			return tagsWith.get(0);
+		}
+
+		public List<String> getTagsStartsWith(String prefix) {
+			return getTagsStartsWith(tags, prefix);
+		}
+
+		public String getTagStartsWith(String prefix) {
+			return getTagStartsWith(tags, prefix);
 		}
 
 		private Fleet() {
@@ -201,8 +218,16 @@ public class AI_missionUtils {
 						tags.add(tag);
 					}
 
+					String autoPointMultTag = getTagStartsWith(tags, "AUTO_POINT_MULT_");
+					if (autoPointMultTag != null) {
+						String mult = autoPointMultTag.replace("AUTO_POINT_MULT_", "");
+						member.getCaptain().getMemoryWithoutUpdate().set(AICoreOfficerPluginImpl.AUTOMATED_POINTS_MULT, Float.valueOf(mult));
+					}
+
 					AutomationProcessor automationProcessor = AutomationProcessor.loadAutomationScript(orders);
-					fleet.fleetMembers.put(member, automationProcessor);
+
+					FleetMemberData data = new FleetMemberData(automationProcessor, tags);
+					fleet.fleetMembers.put(member, data);
 				}
 			} catch (IOException | JSONException ex) {
 				log.error("unable to read player" + playerNumber + "_fleet.csv");
@@ -303,6 +328,17 @@ public class AI_missionUtils {
 			log.info("____________________________");
 
 			return maintenance;
+		}
+	}
+
+	public static class FleetMemberData {
+
+		private AutomationProcessor automationProcessor;
+		private Set<String> tags;
+
+		public FleetMemberData(AutomationProcessor automationProcessor, Set<String> tags) {
+			this.automationProcessor = automationProcessor;
+			this.tags = tags;
 		}
 	}
 
@@ -642,7 +678,9 @@ public class AI_missionUtils {
 
 				//add ship
 				ShipAPI ship = engine.getFleetManager(side).spawnFleetMember(member, loc, angle, 3);
-				if (ship.getCaptain().getStats().hasSkill(Skills.COMBAT_ENDURANCE)) ship.setCurrentCR(0.85f);
+				//if (ship.getCaptain().getStats().hasSkill(Skills.COMBAT_ENDURANCE)) ship.setCurrentCR(0.85f);
+
+				log.info("CR for " + member.getHullId() + " is " + ship.getCurrentCR() + " and member CR is " + member.getRepairTracker().getCR());
 				log.info("Spawning " + side.name() + "'s " + member.getHullId() + " at " + (int) spawnX + "x" + (int) spawnY);
 
 				//set new location
