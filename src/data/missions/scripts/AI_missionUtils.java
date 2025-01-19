@@ -126,7 +126,14 @@ public class AI_missionUtils {
 
 			String fleetDataPath = path + "player" + playerNumber + "_data.csv";
 			try {
-				JSONArray playerData = Global.getSettings().getMergedSpreadsheetDataForMod("name", fleetDataPath, "aibattles");
+				JSONArray playerData;
+				try {
+					playerData = Global.getSettings().getMergedSpreadsheetDataForMod("name", fleetDataPath, "aibattles");
+				} catch (Exception e){
+					playerData = Global.getSettings().getMergedSpreadsheetDataForMod("name", fleetDataPath+".data", "aibattles");
+
+				}
+
 				for (int i = 0; i < playerData.length(); i++) {
 					JSONObject row = playerData.getJSONObject(i);
 					if (row.getString("name").isEmpty()) continue;
@@ -157,7 +164,14 @@ public class AI_missionUtils {
 
 			String memberDataPath = path + "player" + playerNumber + "_fleet.csv";
 			try {
-				JSONArray playerFleet = Global.getSettings().getMergedSpreadsheetDataForMod("rowNumber", memberDataPath, "aibattles");
+				JSONArray playerFleet;
+				try {
+					playerFleet = Global.getSettings().getMergedSpreadsheetDataForMod("rowNumber", memberDataPath, "aibattles");
+				} catch (Exception e){
+					playerFleet = Global.getSettings().getMergedSpreadsheetDataForMod("rowNumber", memberDataPath+".data", "aibattles");
+
+				}
+
 				for (int i = 0; i < playerFleet.length(); i++) {
 					JSONObject row = playerFleet.getJSONObject(i);
 					if (row.getString("rowNumber").isEmpty()) continue;
