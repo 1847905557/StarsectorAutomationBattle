@@ -1,7 +1,6 @@
 package data.missions.scripts.automation.pickers;
 
 import com.fs.starfarer.api.combat.*;
-import data.missions.scripts.automation.AutomationUtils;
 import data.missions.scripts.automation.PickerAPI;
 
 import java.util.List;

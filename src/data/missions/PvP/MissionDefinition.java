@@ -74,6 +74,7 @@ public class MissionDefinition implements MissionDefinitionPlugin {
 
 		//cycle the matches while holding space
 		if (firstEnteringMission) {
+
 			firstEnteringMission = false;
 			globalCurrentMatch = 0;
 		} else if (Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) {

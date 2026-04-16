@@ -1,10 +1,8 @@
 package data.missions.scripts.automation.filters;
 
-import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.CombatEngineAPI;
 import com.fs.starfarer.api.combat.CombatEntityAPI;
 import com.fs.starfarer.api.combat.ShipAPI;
-import data.missions.scripts.automation.AutomationProcessor;
 import data.missions.scripts.automation.FilterAPI;
 import org.lazywizard.lazylib.MathUtils;
 

@@ -409,5 +409,10 @@ public class AutomationUtils {
 		public AssignmentTargetAPI getTarget() {
 			return ship;
 		}
+
+		@Override
+		public List<DeployedFleetMemberAPI> getAssignedMembers() {
+			return List.of(ship);
+		}
 	}
 }

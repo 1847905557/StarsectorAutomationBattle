@@ -16,7 +16,6 @@ import com.fs.starfarer.api.loading.WeaponGroupSpec;
 import com.fs.starfarer.api.loading.WeaponGroupType;
 import com.fs.starfarer.api.mission.FleetSide;
 import com.fs.starfarer.api.mission.MissionDefinitionAPI;
-import data.missions.scripts.automation.AutomationController;
 import data.missions.scripts.automation.AutomationProcessor;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
