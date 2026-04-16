@@ -6,7 +6,7 @@ import data.missions.scripts.automation.AutomationUtils;
 public class AIBattleModPlugin extends BaseModPlugin {
 
 	@Override
-	public void onApplicationLoad() throws Exception {
+	public void onApplicationLoad() {
 		this.onDevModeF8Reload();
 	}
 
